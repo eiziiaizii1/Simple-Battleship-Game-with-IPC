@@ -27,8 +27,8 @@ bool can_place_ship(int grid[SIZE][SIZE], int x, int y, int size, bool horizonta
             if(x > 0 && grid[x - 1][y + i] == 1) return false;
             if(x < SIZE - 1 && grid[x + 1][y + i] == 1) return false;
         }
-        if (y > 0 && grid[x][y - 1] == 1) return false;
-        if (y + size < SIZE && grid[x][y + size] == 1) return false;
+        if (y > 0 && grid[x][y - 1] == 1 || grid[x - 1][y - 1] == 1 || grid[x + 1][y - 1] == 1) return false;
+        if (y + size < SIZE && grid[x][y + size] == 1 || grid[x - 1][y + size] == 1 || grid[x + 1][y + size] == 1) return false;
     } else {
         if(x + size > SIZE) return false;
         for (int i = 0; i < size; i++) {
@@ -36,8 +36,8 @@ bool can_place_ship(int grid[SIZE][SIZE], int x, int y, int size, bool horizonta
             if(y > 0 && grid[x + i][y - 1] == 1) return false;
             if(y < SIZE - 1 && grid[x + i][y + 1] == 1) return false;
         }
-        if (x > 0 && grid[x - 1][y] == 1) return false;
-        if (x + size < SIZE && grid[x + size][y] == 1) return false;
+        if (x > 0 && grid[x - 1][y] == 1 || grid[x - 1][y + 1] == 1|| grid[x - 1][y - 1] == 1) return false;
+        if (x + size < SIZE && grid[x + size][y] == 1 || grid[x + size][y + 1] == 1 || grid[x + size][y - 1] == 1) return false;
     }
     return true;
 }
@@ -94,10 +94,31 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
 
 int main() {
     srand(time(NULL));
-    int grid[SIZE][SIZE];
-    create_grid(grid);
+
+    int parent_grid[SIZE][SIZE];
+    int child_grid[SIZE][SIZE];
+
+    create_grid(parent_grid);
+    create_grid(child_grid);
+
     struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
-    place_ships(grid, ship_list);
-    print_grid(grid, "player1");
+
+    place_ships(parent_grid, ship_list);
+    place_ships(child_grid, ship_list);
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("Failed to fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        printf("Child Process: Displaying Child's Grid\n");
+        print_grid(child_grid, "Child");
+        exit(0);
+    } else {
+        printf("Parent Process: Displaying Parent's Grid\n");
+        print_grid(parent_grid, "Parent");
+    }
+
     return 0;
 }
