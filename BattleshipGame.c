@@ -276,10 +276,10 @@ int main() {
             shipsPlaced = false;
       	}
         else if(option == 4){
+            printf("Parent Process: Displaying Parent's Grid\n");
+            print_grid(parent_grid, "Parent");
             printf("Child Process: Displaying Child's Grid\n");
             print_grid(child_grid, "Child");
-			printf("Parent Process: Displaying Parent's Grid\n");
-            print_grid(parent_grid, "Parent");
         }
 
 		printf("\n\n");
