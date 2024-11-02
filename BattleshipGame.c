@@ -29,25 +29,33 @@ bool can_place_ship(int grid[SIZE][SIZE], int x, int y, int size, bool horizonta
         if(y + size > SIZE) return false;
         for (int i = 0; i < size; i++) {
             if(grid[x][y + i] == 1) return false;
+            if(x > 0 && grid[x - 1][y + i] == 1) return false;
+            if(x < SIZE - 1 && grid[x + 1][y + i] == 1) return false;
         }
+        if (y > 0 && grid[x][y - 1] == 1 || grid[x - 1][y - 1] == 1 || grid[x + 1][y - 1] == 1) return false;
+        if (y + size < SIZE && grid[x][y + size] == 1 || grid[x - 1][y + size] == 1 || grid[x + 1][y + size] == 1) return false;
     } else {
         if(x + size > SIZE) return false;
         for (int i = 0; i < size; i++) {
             if(grid[x + i][y] == 1) return false;
+            if(y > 0 && grid[x + i][y - 1] == 1) return false;
+            if(y < SIZE - 1 && grid[x + i][y + 1] == 1) return false;
         }
+        if (x > 0 && grid[x - 1][y] == 1 || grid[x - 1][y + 1] == 1|| grid[x - 1][y - 1] == 1) return false;
+        if (x + size < SIZE && grid[x + size][y] == 1 || grid[x + size][y + 1] == 1 || grid[x + size][y - 1] == 1) return false;
     }
     return true;
 }
 
 void place_ship(int grid[SIZE][SIZE], int x, int y, int size, bool horizontal){
     if(horizontal) {
-        for (int i = 0; i < size; i++) {
-            grid[x][y + i] = 1;
+        for (int i = 0; i < size; i++, y++){
+            grid[x][y] = 1;
         }
     }
     else {
-        for (int i = 0; i < size; i++) {
-            grid[x + i][y] = 1;
+        for (int i = 0; i < size; i++, x++){
+            grid[x][y] = 1;
         }
     }
 }
