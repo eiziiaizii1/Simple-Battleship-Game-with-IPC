@@ -114,7 +114,12 @@ void attack(int grid[SIZE][SIZE]) {
     }
     // 8 = miss
     // 9 = hit
-    grid[x][y] = (grid[x][y] == 0 ? 8 : 9); 
+    if(grid[x][y] == 0){
+        grid[x][y] = 8;
+    }
+    else if(grid[x][y] == 1){
+        grid[x][y] = 9;
+    }
 }
 
 void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
