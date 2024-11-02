@@ -110,9 +110,8 @@ void attack(int grid[SIZE][SIZE]) {
 }
 
 void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
-    //creation of named pipeline
     const char *fifo_name = "/tmp/battleship_fifo";
-    mkfifo(fifo_name, 0666); // read and write access for all users
+    mkfifo(fifo_name, 0666);
 
     pid_t pid = fork();
 
@@ -121,14 +120,19 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
         exit(EXIT_FAILURE);
     }
     // Child process
-    else if (pid == 0) {
+    else if (pid == 0) {  
         int fd;
-        while (!all_ships_sunk(parent_grid)) {
-            // Wait for the parent's turn to complete
-            fd = open(fifo_name, O_RDONLY); // file descriptor
-            int turn = 1; // 1 -> parent's turn, 0 --> child's turn  
+        while (true) {
+            fd = open(fifo_name, O_RDONLY);
+            int turn; // 1 --> parent / 0 --> child / -1 --> gameOver signal
             read(fd, &turn, sizeof(turn));
             close(fd);
+
+            // Game over signal
+            if (turn == -1) {  
+                printf("Child process exiting...\n");
+                break;
+            }
 
             printf("Child's turn:\n");
             attack(parent_grid);
@@ -137,6 +141,11 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
 
             if (all_ships_sunk(parent_grid)) {
                 printf("Child wins!\n");
+                // Send game over signal to parent
+                turn = -1;
+                fd = open(fifo_name, O_WRONLY);
+                write(fd, &turn, sizeof(turn));
+                close(fd);
                 break;
             }
 
@@ -146,12 +155,13 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
             write(fd, &turn, sizeof(turn));
             close(fd);
         }
+        exit(0);
     } 
     // Parent process
     else {  
         int fd;
         int turn = 1;
-        while (!all_ships_sunk(child_grid)) {
+        while (true) {
             if (turn == 1) {
                 printf("Parent's turn:\n");
                 attack(child_grid);
@@ -160,6 +170,11 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
 
                 if (all_ships_sunk(child_grid)) {
                     printf("Parent wins!\n");
+                    // Send game over signal to child
+                    turn = -1;
+                    fd = open(fifo_name, O_WRONLY);
+                    write(fd, &turn, sizeof(turn));
+                    close(fd);
                     break;
                 }
 
@@ -170,10 +185,16 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
                 close(fd);
             }
 
-            // Wait for the child's turn to complete
+            // Wait for the child's turn or game over signal
             fd = open(fifo_name, O_RDONLY);
             read(fd, &turn, sizeof(turn));
             close(fd);
+
+            // Game over signal received
+            if (turn == -1) {  
+                printf("Parent process exiting...\n");
+                break;
+            }
         }
 
         // Clean up
@@ -181,7 +202,6 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
         unlink(fifo_name);
     }
 }
-
 
 int main() {
         srand(time(NULL));
