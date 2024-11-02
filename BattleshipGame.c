@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -93,32 +94,61 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
 }
 
 int main() {
-    srand(time(NULL));
+	srand(time(NULL));
 
-    int parent_grid[SIZE][SIZE];
-    int child_grid[SIZE][SIZE];
+    	int parent_grid[SIZE][SIZE];
+    	int child_grid[SIZE][SIZE];
 
-    create_grid(parent_grid);
-    create_grid(child_grid);
+    	create_grid(parent_grid);
+    	create_grid(child_grid);
 
-    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
+	struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
 
-    place_ships(parent_grid, ship_list);
-    place_ships(child_grid, ship_list);
+    	place_ships(parent_grid, ship_list);
+    	place_ships(child_grid, ship_list);
+	printf("Welcome to The Battleship Game\n");
+	int option;
+	do{
+		printf("Enter 1 to start a new game\n");
+      		printf("Enter 2 to display map\n");
+      		printf("Enter 3 to change the location of the ships\n");
+      		printf("Press any key to finish the game\n");
 
-    pid_t pid = fork();
+      		if (scanf("%d", &option) != 1){
+         		break;
+      		}
 
-    if (pid < 0) {
-        perror("Failed to fork");
-        exit(EXIT_FAILURE);
-    } else if (pid == 0) {
-        printf("Child Process: Displaying Child's Grid\n");
-        print_grid(child_grid, "Child");
-        exit(0);
-    } else {
-        printf("Parent Process: Displaying Parent's Grid\n");
-        print_grid(parent_grid, "Parent");
-    }
+      		if(option == 1){
+ 			//create processes here 
+			/*
+			pid_t pid = fork();
 
-    return 0;
+		        if (pid < 0) {
+                		perror("Failed to fork");
+               			exit(EXIT_FAILURE);
+        		}else if (pid == 0) {
+                		printf("Child Process: Displaying Child's Grid\n");
+                		print_grid(child_grid, "Child");
+                		exit(0);
+        		}else {
+                		printf("Parent Process: Displaying Parent's Grid\n");
+                		print_grid(parent_grid, "Parent");
+			}*/
+		}else if(option == 2){
+			printf("Child Process: Displaying Child's Grid\n");
+                	print_grid(child_grid, "Child");
+			printf("Parent Process: Displaying Parent's Grid\n");
+                	print_grid(parent_grid, "Parent");
+    		}else if(option == 3){
+			create_grid(parent_grid);
+                	create_grid(child_grid);
+                        place_ships(parent_grid, ship_list);
+                	place_ships(child_grid, ship_list);
+      		}
+
+		printf("\n\n");
+	}while(option >0 && option <4);
+	
+
+	return 0;
 }
