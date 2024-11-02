@@ -220,16 +220,23 @@ void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
 int main() {
 	srand(time(NULL));
 
-    	int parent_grid[SIZE][SIZE];
-    	int child_grid[SIZE][SIZE];
+    int parent_grid[SIZE][SIZE];
+    int child_grid[SIZE][SIZE];
 
-    	create_grid(parent_grid);
-    	create_grid(child_grid);
+    // OPTION 1 VE OPTION 2 BIRBIRIYLE ALAKALI, OYUN BAŞLAR BAŞLAMAZ YENI GRID OLUŞTURACAK MI YOKSA HER PLAY NEW GAME DEDIĞINDE YENI GRID MI OLUŞTURACAK
+    // HARITA OLUŞTURMADAN DISPLAY MAP YAPARSAK MATRIX SAÇMA SAPAN OLUYOR
+    // DIREKT OYUNU OYNARKEN YENI HARITA OLUŞTURUNCA DA ILK BAŞTAKI OLUŞAN HARITANIN ÜZERİNE YAZIYOR
 
+    // TODO-1  BUNA BI BAKMAK LAZIM GELIR
+
+    // TODO-2 OYUN BITTIKTEN SONRA DISPLAY MAP YAPINCA CHILD PROCESS MATRIXIN İLK HALİNİ GÖSTERİYO, PARENT PROCESS İSE OYUN BİTTİĞİNDEKİ HALİNİ GÖSTERİYO  
+    
+    create_grid(parent_grid);
+    create_grid(child_grid);
 	struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
+    place_ships(parent_grid, ship_list);
+    place_ships(child_grid, ship_list);
 
-    	place_ships(parent_grid, ship_list);
-    	place_ships(child_grid, ship_list);
 	printf("Welcome to The Battleship Game\n");
 	int option;
 	do{
@@ -243,6 +250,14 @@ int main() {
       		}
 
       		if(option == 1){
+                create_grid(parent_grid);
+                create_grid(child_grid);
+
+                place_ships(parent_grid, ship_list);
+                place_ships(child_grid, ship_list);
+
+                playTurns(parent_grid, child_grid);
+
  			//create processes here 
 			/*
 			pid_t pid = fork();
