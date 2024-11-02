@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -284,7 +283,7 @@ int main() {
         }
 
 		printf("\n\n");
-	}while(option > 0 && option < 6);
+	}while(option > 0 && option < 5);
 	
 
 	return 0;
