@@ -223,79 +223,68 @@ int main() {
     int parent_grid[SIZE][SIZE];
     int child_grid[SIZE][SIZE];
 
-    // OPTION 1 VE OPTION 2 BIRBIRIYLE ALAKALI, OYUN BAŞLAR BAŞLAMAZ YENI GRID OLUŞTURACAK MI YOKSA HER PLAY NEW GAME DEDIĞINDE YENI GRID MI OLUŞTURACAK
-    // HARITA OLUŞTURMADAN DISPLAY MAP YAPARSAK MATRIX SAÇMA SAPAN OLUYOR
-    // DIREKT OYUNU OYNARKEN YENI HARITA OLUŞTURUNCA DA ILK BAŞTAKI OLUŞAN HARITANIN ÜZERİNE YAZIYOR
-
-    // TODO-1  BUNA BI BAKMAK LAZIM GELIR
-
     // TODO-2 OYUN BITTIKTEN SONRA DISPLAY MAP YAPINCA CHILD PROCESS MATRIXIN İLK HALİNİ GÖSTERİYO, PARENT PROCESS İSE OYUN BİTTİĞİNDEKİ HALİNİ GÖSTERİYO  
     
     create_grid(parent_grid);
     create_grid(child_grid);
+
+    bool shipsPlaced = false;
+    bool alreadyBattled = false;
+
 	struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
-    place_ships(parent_grid, ship_list);
-    place_ships(child_grid, ship_list);
+
 
 	printf("Welcome to The Battleship Game\n");
 	int option;
 	do{
-		printf("Enter 1 to start a new game\n");
-      		printf("Enter 2 to display map\n");
-      		printf("Enter 3 to change the location of the ships\n");
-      		printf("Press any key to finish the game\n");
+        printf("Enter 1 to place/replace the ships\n");
+        printf("Enter 2 to start the battle\n");
+		printf("Enter 3 to reset the map\n");
+      	printf("Enter 4 to display map\n");
+      	printf("Press any key to finish the game\n");
 
-      		if (scanf("%d", &option) != 1){
-         		break;
-      		}
+      	if (scanf("%d", &option) != 1){
+        	break;
+      	}
 
-      		if(option == 1){
-                create_grid(parent_grid);
-                create_grid(child_grid);
+      	if(option == 1){
+            create_grid(parent_grid);
+            create_grid(child_grid);
 
-                place_ships(parent_grid, ship_list);
-                place_ships(child_grid, ship_list);
+            place_ships(parent_grid, ship_list);
+            place_ships(child_grid, ship_list);
 
+            shipsPlaced = true;
+            alreadyBattled = false;
+		}
+        else if(option == 2 ){
+            if(shipsPlaced == false){
+                printf("\nPLACE THE SHIPS FIRSTTT!!!!\n");
+            }
+            else if(alreadyBattled == true){
+                printf("\n YOU MUST RESET THE MAP AND REPLACE THE SHIPS!!!\n");
+            }
+            else{
                 playTurns(parent_grid, child_grid);
+                alreadyBattled = true;
+            }
+    	}
+        else if(option == 3){
+		    create_grid(parent_grid);
+            create_grid(child_grid);
 
- 			//create processes here 
-			/*
-			pid_t pid = fork();
-    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
-    place_ships(parent_grid, ship_list);
-    place_ships(child_grid, ship_list);
-
-    print_grid(parent_grid, "Parent");
-    print_grid(child_grid, "Child");
-
-    // Start the game
-    playTurns(parent_grid, child_grid);
-
-		        if (pid < 0) {
-                		perror("Failed to fork");
-               			exit(EXIT_FAILURE);
-        		}else if (pid == 0) {
-                		printf("Child Process: Displaying Child's Grid\n");
-                		print_grid(child_grid, "Child");
-                		exit(0);
-        		}else {
-                		printf("Parent Process: Displaying Parent's Grid\n");
-                		print_grid(parent_grid, "Parent");
-			}*/
-		}else if(option == 2){
-			printf("Child Process: Displaying Child's Grid\n");
-                	print_grid(child_grid, "Child");
+            alreadyBattled = false;
+            shipsPlaced = false;
+      	}
+        else if(option == 4){
+            printf("Child Process: Displaying Child's Grid\n");
+            print_grid(child_grid, "Child");
 			printf("Parent Process: Displaying Parent's Grid\n");
-                	print_grid(parent_grid, "Parent");
-    		}else if(option == 3){
-			create_grid(parent_grid);
-                	create_grid(child_grid);
-                        place_ships(parent_grid, ship_list);
-                	place_ships(child_grid, ship_list);
-      		}
+            print_grid(parent_grid, "Parent");
+        }
 
 		printf("\n\n");
-	}while(option >0 && option <4);
+	}while(option > 0 && option < 6);
 	
 
 	return 0;
