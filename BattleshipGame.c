@@ -4,6 +4,11 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdbool.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 
 #define SIZE 8
 #define SHIP_COUNT 4
@@ -93,6 +98,125 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
     printf("\n");
 }
 
+// Currently Attacks randomly, will be changed according to ai behavior
+void attack(int grid[SIZE][SIZE]) {
+    int x, y;
+    
+    // Avoids hitting the previously hit cells
+    do {
+        x = rand() % SIZE;
+        y = rand() % SIZE;
+    } while (grid[x][y] == 2 || grid[x][y] == 2);
+
+    if (grid[x][y] == 1) {
+        printf("Hit at (%d, %d)!\n", x, y);
+    } else {
+        printf("Miss at (%d, %d)!\n", x, y);
+    }
+    // 8 = miss
+    // 9 = hit
+    if(grid[x][y] == 0){
+        grid[x][y] = 8;
+    }
+    else if(grid[x][y] == 1){
+        grid[x][y] = 9;
+    }
+}
+
+void playTurns(int parent_grid[SIZE][SIZE], int child_grid[SIZE][SIZE]) {
+    const char *fifo_name = "/tmp/battleship_fifo";
+    mkfifo(fifo_name, 0666);
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("Failed to fork");
+        exit(EXIT_FAILURE);
+    }
+    // Child process
+    else if (pid == 0) {  
+        int fd;
+        while (true) {
+            fd = open(fifo_name, O_RDONLY);
+            int turn; // 1 --> parent / 0 --> child / -1 --> gameOver signal
+            read(fd, &turn, sizeof(turn));
+            close(fd);
+
+            // Game over signal
+            if (turn == -1) {  
+                printf("Child process exiting...\n");
+                break;
+            }
+
+            printf("Child's turn:\n");
+            attack(parent_grid);
+            printf("Parent's Grid After Child's Attack\n");
+            print_grid(parent_grid, "Parent");
+
+            if (all_ships_sunk(parent_grid)) {
+                printf("Child wins!\n");
+                // Send game over signal to parent
+                turn = -1;
+                fd = open(fifo_name, O_WRONLY);
+                write(fd, &turn, sizeof(turn));
+                close(fd);
+                break;
+            }
+
+            // Signal the parent's turn
+            turn = 1;
+            fd = open(fifo_name, O_WRONLY);
+            write(fd, &turn, sizeof(turn));
+            close(fd);
+        }
+        exit(0);
+    } 
+    // Parent process
+    else {  
+        int fd;
+        int turn = 1;
+        while (true) {
+            if (turn == 1) {
+                printf("Parent's turn:\n");
+                attack(child_grid);
+                printf("Child's Grid After Parent's Attack\n");
+                print_grid(child_grid, "Child");
+
+                if (all_ships_sunk(child_grid)) {
+                    printf("Parent wins!\n");
+                    // Send game over signal to child
+                    turn = -1;
+                    fd = open(fifo_name, O_WRONLY);
+                    write(fd, &turn, sizeof(turn));
+                    close(fd);
+                    break;
+                }
+
+                // Signal the child's turn
+                turn = 0;
+                fd = open(fifo_name, O_WRONLY);
+                write(fd, &turn, sizeof(turn));
+                close(fd);
+            }
+
+            // Wait for the child's turn or game over signal
+            fd = open(fifo_name, O_RDONLY);
+            read(fd, &turn, sizeof(turn));
+            close(fd);
+
+            // Game over signal received
+            if (turn == -1) {  
+                printf("Parent process exiting...\n");
+                break;
+            }
+        }
+
+        // Clean up
+        wait(NULL);
+        unlink(fifo_name);
+    }
+}
+
 int main() {
 	srand(time(NULL));
 
@@ -122,6 +246,15 @@ int main() {
  			//create processes here 
 			/*
 			pid_t pid = fork();
+    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
+    place_ships(parent_grid, ship_list);
+    place_ships(child_grid, ship_list);
+
+    print_grid(parent_grid, "Parent");
+    print_grid(child_grid, "Child");
+
+    // Start the game
+    playTurns(parent_grid, child_grid);
 
 		        if (pid < 0) {
                 		perror("Failed to fork");
