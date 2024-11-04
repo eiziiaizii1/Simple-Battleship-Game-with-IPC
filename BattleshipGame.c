@@ -14,12 +14,15 @@
 #define SIZE 8
 #define SHIP_COUNT 4
 
+int turnCount = 0;
+
 struct ships {
     int size;
 };
 
 // Clear the grid memory using memset
 void clear_grid(int grid[SIZE][SIZE]) {
+    turnCount=0;
     memset(grid, 0, SIZE * SIZE * sizeof(int));
 }
 
@@ -133,6 +136,7 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
 
 // Currently Attacks randomly, will be changed according to ai behavior
 void attack(int grid[SIZE][SIZE]) {
+    turnCount++;
     int x, y;
     
     // Avoids hitting the previously hit cells
@@ -156,6 +160,10 @@ void attack(int grid[SIZE][SIZE]) {
     }
 }
 
+void aiAttack(int grid[SIZE][SIZE]) {
+
+}
+
 void playTurns(int *parent_grid, int *child_grid) {
     const char *fifo_name = "/tmp/battleship_fifo";
     mkfifo(fifo_name, 0666);
@@ -168,6 +176,8 @@ void playTurns(int *parent_grid, int *child_grid) {
     }
     // Child process
     else if (pid == 0) {  
+        srand(time(NULL) ^ getpid());
+
         int fd;
         while (true) {
             fd = open(fifo_name, O_RDONLY);
@@ -175,15 +185,21 @@ void playTurns(int *parent_grid, int *child_grid) {
             read(fd, &turn, sizeof(turn));
             close(fd);
 
+            //usleep(1000);
+
             if (turn == -1) {
                 printf("Child process exiting...\n");
                 break;
             }
-
+            
+            printf("TURN COUNT: %d\n", turnCount);
             printf("Child's turn:\n");
             attack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
+            //aiAttack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
             printf("Parent's Grid After Child's Attack\n");
             print_grid((int (*)[SIZE])parent_grid, "Parent");
+
+            
 
             if (all_ships_sunk((int (*)[SIZE])parent_grid)) {
                 printf("Child wins!\n");
@@ -202,13 +218,18 @@ void playTurns(int *parent_grid, int *child_grid) {
         exit(0);
     } 
     // Parent process
-    else {  
+    else {
+        srand(time(NULL) ^ getpid()); 
         int fd;
         int turn = 1;
         while (true) {
             if (turn == 1) {
+                
+                //usleep(1000);
+                printf("TURN COUNT: %d\n", turnCount);
                 printf("Parent's turn:\n");
                 attack((int (*)[SIZE])child_grid);
+                //aiAttack((int (*)[SIZE])child_grid);
                 printf("Child's Grid After Parent's Attack\n");
                 print_grid((int (*)[SIZE])child_grid, "Child");
 
