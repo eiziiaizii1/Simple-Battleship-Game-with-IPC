@@ -14,11 +14,23 @@
 #define SIZE 8
 #define SHIP_COUNT 4
 
-int turnCount = 0;
-
 struct ships {
     int size;
 };
+
+typedef struct {
+    bool target_mode;     // Whether AI is in focused targeting mode
+    int last_hit_x;       // X coordinate of the last successful hit
+    int last_hit_y;       // Y coordinate of the last successful hit
+    int hit_direction[2]; // Direction for targeting if orientation is determined
+    bool orientation_locked; // Whether AI has locked onto horizontal or vertical
+    int first_hit_x;      // X coordinate of the first hit on current ship
+    int first_hit_y;      // Y coordinate of the first hit on current ship
+    bool direction_reversed; // Whether we've already tried reversing direction
+} AIState;
+
+AIState ai_state = {false, -1, -1, {0, 0}, false, -1, -1, false};
+int turnCount = 0;
 
 // Clear the grid memory using memset
 void clear_grid(int grid[SIZE][SIZE]) {
@@ -134,64 +146,119 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
     printf("\n");
 }
 
-// Currently Attacks randomly, will be changed according to ai behavior
-void attack(int grid[SIZE][SIZE]) {
-    turnCount++;
-    int x, y;
-    
-    // Avoids hitting the previously hit cells
-    do {
-        x = rand() % SIZE;
-        y = rand() % SIZE;
-    } while (grid[x][y] == 8 || grid[x][y] == 9);
+// Helper function to mark adjacent cells as misses when a ship is sunk
+void mark_adjacent_cells(int grid[SIZE][SIZE], int start_x, int start_y, int end_x, int end_y) {
+    // Determine the area to mark
+    int min_x = (start_x < end_x ? start_x : end_x) - 1;
+    int max_x = (start_x > end_x ? start_x : end_x) + 1;
+    int min_y = (start_y < end_y ? start_y : end_y) - 1;
+    int max_y = (start_y > end_y ? start_y : end_y) + 1;
 
-    if (grid[x][y] == 1) {
-        printf("Hit at (%d, %d)!\n", x, y);
-    } else {
-        printf("Miss at (%d, %d)!\n", x, y);
-    }
-    // 8 = miss
-    // 9 = hit
-    if(grid[x][y] == 0){
-        grid[x][y] = 8;
-    }
-    else if(grid[x][y] == 1){
-        grid[x][y] = 9;
+    // Mark all cells in the area
+    for (int i = min_x; i <= max_x; i++) {
+        for (int j = min_y; j <= max_y; j++) {
+            // Check if within grid bounds and not a hit
+            if (i >= 0 && i < SIZE && j >= 0 && j < SIZE && grid[i][j] != 9) {
+                grid[i][j] = 8; // Mark as miss
+            }
+        }
     }
 }
 
-typedef struct {
-    bool target_mode;     // Whether AI is in focused targeting mode
-    int last_hit_x;       // X coordinate of the last successful hit
-    int last_hit_y;       // Y coordinate of the last successful hit
-    int hit_direction[2]; // Direction for targeting if orientation is determined (e.g., {0, 1} for horizontal)
-    bool orientation_locked; // Whether AI has locked onto a horizontal or vertical orientation
-} AIState;
-
-AIState ai_state = {false, -1, -1, {0, 0}, false};
-
-bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y) {
-    // Check if horizontally adjacent cells form a complete line of hits
-    int left = x, right = x;
-    while (left > 0 && grid[left - 1][y] == 9) left--;    // Expand to the left
-    while (right < SIZE - 1 && grid[right + 1][y] == 9) right++;  // Expand to the right
-    
-    // Check if both ends of the horizontal line are blocked by misses or edges
-    if ((left == 0 || grid[left - 1][y] == 8) && (right == SIZE - 1 || grid[right + 1][y] == 8)) {
-        return true;  // Ship is sunk horizontally
-    }
-    
-    // Check if vertically adjacent cells form a complete line of hits
-    int up = y, down = y;
-    while (up > 0 && grid[x][up - 1] == 9) up--;      // Expand upward
-    while (down < SIZE - 1 && grid[x][down + 1] == 9) down++;  // Expand downward
-    
-    // Check if both ends of the vertical line are blocked by misses or edges
-    if ((up == 0 || grid[x][up - 1] == 8) && (down == SIZE - 1 || grid[x][down + 1] == 8)) {
-        return true;  // Ship is sunk vertically
+bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
+    // First, verify we're actually checking a hit position
+    if (grid[x][y] != 9) {
+        return false;
     }
 
-    return false;  // Ship is not yet fully hit and sunk
+    // Store ship coordinates for adjacent cell marking
+    int start_x = x, end_x = x;
+    int start_y = y, end_y = y;
+
+    // Check both horizontal and vertical directions from the hit position
+    int horizontal_length = 1;
+    int vertical_length = 1;
+    bool horizontal_complete = true;
+    bool vertical_complete = true;
+
+    // Check horizontal direction
+    // Left
+    int left = y - 1;
+    while (left >= 0 && (grid[x][left] == 9 || grid[x][left] == 1)) {
+        if (grid[x][left] == 1) {
+            horizontal_complete = false;
+        }
+        horizontal_length++;
+        start_y = left;
+        left--;
+    }
+    
+    // Right
+    int right = y + 1;
+    while (right < SIZE && (grid[x][right] == 9 || grid[x][right] == 1)) {
+        if (grid[x][right] == 1) {
+            horizontal_complete = false;
+        }
+        horizontal_length++;
+        end_y = right;
+        right++;
+    }
+
+    // Check vertical direction
+    // Up
+    int up = x - 1;
+    while (up >= 0 && (grid[up][y] == 9 || grid[up][y] == 1)) {
+        if (grid[up][y] == 1) {
+            vertical_complete = false;
+        }
+        vertical_length++;
+        start_x = up;
+        up--;
+    }
+    
+    // Down
+    int down = x + 1;
+    while (down < SIZE && (grid[down][y] == 9 || grid[down][y] == 1)) {
+        if (grid[down][y] == 1) {
+            vertical_complete = false;
+        }
+        vertical_length++;
+        end_x = down;
+        down++;
+    }
+
+    // Validate ship configuration
+    if (horizontal_length > 1 && vertical_length > 1) {
+        return false; // Invalid L-shaped configuration
+    }
+
+    bool is_sunk = false;
+    // Check if we found a complete
+    // Horizontal ship
+    if (horizontal_length > 1) {
+        bool properly_bounded = 
+            (left < 0 || grid[x][left] == 8 || grid[x][left] == 0) &&
+            (right >= SIZE || grid[x][right] == 8 || grid[x][right] == 0);
+            
+        is_sunk = properly_bounded && horizontal_complete;
+        if (is_sunk && mark_adjacent) {
+            mark_adjacent_cells(grid, x, start_y, x, end_y);
+        }
+    }
+
+    // Vertical sihp
+    if (vertical_length > 1) {
+        bool properly_bounded = 
+            (up < 0 || grid[up][y] == 8 || grid[up][y] == 0) &&
+            (down >= SIZE || grid[down][y] == 8 || grid[down][y] == 0);
+            
+        is_sunk = properly_bounded && vertical_complete;
+        if (is_sunk && mark_adjacent) {
+            mark_adjacent_cells(grid, start_x, y, end_x, y);
+        }
+    }
+
+    return is_sunk;
 }
 
 void aiAttack(int grid[SIZE][SIZE]) {
@@ -202,22 +269,37 @@ void aiAttack(int grid[SIZE][SIZE]) {
         bool found_target = false;
 
         if (ai_state.orientation_locked) {
-            // Continue in the locked direction if orientation is determined
+            // Try current direction first
             x = ai_state.last_hit_x + ai_state.hit_direction[0];
             y = ai_state.last_hit_y + ai_state.hit_direction[1];
 
-            // Check if within bounds and not previously attacked
-            if (x >= 0 && x < SIZE && y >= 0 && y < SIZE &&
-                grid[x][y] != 8 && grid[x][y] != 9) {
-                found_target = true;
+            // Check if we need to reverse direction
+            if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || 
+                grid[x][y] == 8 || grid[x][y] == 9) {
+                
+                if (!ai_state.direction_reversed) {
+                    // Reverse direction and start from first hit
+                    ai_state.hit_direction[0] *= -1;
+                    ai_state.hit_direction[1] *= -1;
+                    ai_state.direction_reversed = true;
+                    
+                    // Start from the first hit position
+                    x = ai_state.first_hit_x + ai_state.hit_direction[0];
+                    y = ai_state.first_hit_y + ai_state.hit_direction[1];
+                    
+                    if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && 
+                        grid[x][y] != 8 && grid[x][y] != 9) {
+                        found_target = true;
+                    }
+                }
+                
+                if (!found_target) {
+                    ai_state.target_mode = false;
+                    ai_state.orientation_locked = false;
+                    ai_state.direction_reversed = false;
+                }
             } else {
-                // Reverse direction if out of bounds or already hit
-                ai_state.hit_direction[0] *= -1;
-                ai_state.hit_direction[1] *= -1;
-                x = ai_state.last_hit_x + ai_state.hit_direction[0];
-                y = ai_state.last_hit_y + ai_state.hit_direction[1];
-                found_target = (x >= 0 && x < SIZE && y >= 0 && y < SIZE &&
-                                grid[x][y] != 8 && grid[x][y] != 9);
+                found_target = true;
             }
         } else {
             // If orientation not locked, try all four directions around the last hit
@@ -225,40 +307,167 @@ void aiAttack(int grid[SIZE][SIZE]) {
             for (int i = 0; i < 4; i++) {
                 int new_x = ai_state.last_hit_x + directions[i][0];
                 int new_y = ai_state.last_hit_y + directions[i][1];
+                
                 if (new_x >= 0 && new_x < SIZE && new_y >= 0 && new_y < SIZE &&
                     grid[new_x][new_y] != 8 && grid[new_x][new_y] != 9) {
                     x = new_x;
                     y = new_y;
                     found_target = true;
-                    
-                    // Lock orientation if a second adjacent hit is found
-                    if (grid[x][y] == 1) {
-                        ai_state.hit_direction[0] = directions[i][0];
-                        ai_state.hit_direction[1] = directions[i][1];
-                        ai_state.orientation_locked = true;
-                    }
                     break;
                 }
             }
         }
 
         if (!found_target) {
-            ai_state.target_mode = false; // Reset if no adjacent targets are available
+            // Reset to random targeting if no valid targets found
+            do {
+                x = rand() % SIZE;
+                y = rand() % SIZE;
+            } while (grid[x][y] == 8 || grid[x][y] == 9);
+            
+            ai_state.target_mode = false;
             ai_state.orientation_locked = false;
+            ai_state.direction_reversed = false;
         }
-    }
-
-    // Random targeting mode if target_mode is false or no adjacent cells are available
-    if (!ai_state.target_mode) {
+    } else {
+        // Random targeting mode
         do {
             x = rand() % SIZE;
             y = rand() % SIZE;
         } while (grid[x][y] == 8 || grid[x][y] == 9);
     }
 
+    // Process the attack
+    if (grid[x][y] == 1) {
+        printf("AI hit at (%d, %d)!\n", x, y);
+        grid[x][y] = 9;
+        
+        if (!ai_state.target_mode) {
+            // First hit on a new ship
+            ai_state.first_hit_x = x;
+            ai_state.first_hit_y = y;
+            ai_state.direction_reversed = false;
+        } else if (!ai_state.orientation_locked) {
+            // Second hit - LETS GOOO LOCK IN TIMEE
+            ai_state.hit_direction[0] = x - ai_state.last_hit_x;
+            ai_state.hit_direction[1] = y - ai_state.last_hit_y;
+            ai_state.orientation_locked = true;
+        }
+        
+        ai_state.last_hit_x = x;
+        ai_state.last_hit_y = y;
+        ai_state.target_mode = true;
+
+        // Check if the ship is sunk, passing true to mark adjacent cells
+        if (is_ship_sunk(grid, x, y, true)) {
+            printf("AI sunk a ship!\n");
+            ai_state.target_mode = false;
+            ai_state.orientation_locked = false;
+            ai_state.direction_reversed = false;
+        }
+    } else {  // Miss
+        printf("AI miss at (%d, %d)!\n", x, y);
+        grid[x][y] = 8;
+    }
+}
+
+
+// AI that doesn't know adjaceny rule 
+/*
+void aiAttackNOOBIE(int grid[SIZE][SIZE]) {
+    int x, y;
+    turnCount++;
+
+    if (ai_state.target_mode) {
+        bool found_target = false;
+
+        if (ai_state.orientation_locked) {
+            // Try current direction first
+            x = ai_state.last_hit_x + ai_state.hit_direction[0];
+            y = ai_state.last_hit_y + ai_state.hit_direction[1];
+
+            // Check if we need to reverse direction
+            if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || 
+                grid[x][y] == 8 || grid[x][y] == 9) {
+                
+                if (!ai_state.direction_reversed) {
+                    // Reverse direction and start from first hit
+                    ai_state.hit_direction[0] *= -1;
+                    ai_state.hit_direction[1] *= -1;
+                    ai_state.direction_reversed = true;
+                    
+                    // Start from the first hit position
+                    x = ai_state.first_hit_x + ai_state.hit_direction[0];
+                    y = ai_state.first_hit_y + ai_state.hit_direction[1];
+                    
+                    if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && 
+                        grid[x][y] != 8 && grid[x][y] != 9) {
+                        found_target = true;
+                    }
+                }
+                
+                if (!found_target) {
+                    // If we've already tried both directions, reset targeting
+                    ai_state.target_mode = false;
+                    ai_state.orientation_locked = false;
+                    ai_state.direction_reversed = false;
+                }
+            } else {
+                found_target = true;
+            }
+        } else {
+            // If orientation not locked, try all four directions around the last hit
+            int directions[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
+            for (int i = 0; i < 4; i++) {
+                int new_x = ai_state.last_hit_x + directions[i][0];
+                int new_y = ai_state.last_hit_y + directions[i][1];
+                
+                if (new_x >= 0 && new_x < SIZE && new_y >= 0 && new_y < SIZE &&
+                    grid[new_x][new_y] != 8 && grid[new_x][new_y] != 9) {
+                    x = new_x;
+                    y = new_y;
+                    found_target = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found_target) {
+            // Reset to random targeting if no valid targets found
+            do {
+                x = rand() % SIZE;
+                y = rand() % SIZE;
+            } while (grid[x][y] == 8 || grid[x][y] == 9);
+            
+            ai_state.target_mode = false;
+            ai_state.orientation_locked = false;
+            ai_state.direction_reversed = false;
+        }
+    } else {
+        // Random targeting mode
+        do {
+            x = rand() % SIZE;
+            y = rand() % SIZE;
+        } while (grid[x][y] == 8 || grid[x][y] == 9);
+    }
+
+    // Process the attack
     if (grid[x][y] == 1) {  // Hit
         printf("AI hit at (%d, %d)!\n", x, y);
         grid[x][y] = 9;
+        
+        if (!ai_state.target_mode) {
+            // First hit on a new ship
+            ai_state.first_hit_x = x;
+            ai_state.first_hit_y = y;
+            ai_state.direction_reversed = false;
+        } else if (!ai_state.orientation_locked) {
+            // Second hit - lock orientation
+            ai_state.hit_direction[0] = x - ai_state.last_hit_x;
+            ai_state.hit_direction[1] = y - ai_state.last_hit_y;
+            ai_state.orientation_locked = true;
+        }
+        
         ai_state.last_hit_x = x;
         ai_state.last_hit_y = y;
         ai_state.target_mode = true;
@@ -268,13 +477,82 @@ void aiAttack(int grid[SIZE][SIZE]) {
             printf("AI sunk a ship!\n");
             ai_state.target_mode = false;
             ai_state.orientation_locked = false;
+            ai_state.direction_reversed = false;
         }
     } else {  // Miss
         printf("AI miss at (%d, %d)!\n", x, y);
         grid[x][y] = 8;
     }
 }
+bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y) {
+    if (grid[x][y] != 9) {
+        return false;
+    }
 
+    int horizontal_length = 1;
+    int vertical_length = 1;
+    bool horizontal_complete = true;
+    bool vertical_complete = true;
+
+    int left = y - 1;
+    while (left >= 0 && (grid[x][left] == 9 || grid[x][left] == 1)) {
+        if (grid[x][left] == 1) {
+            horizontal_complete = false;
+        }
+        horizontal_length++;
+        left--;
+    }
+    
+    int right = y + 1;
+    while (right < SIZE && (grid[x][right] == 9 || grid[x][right] == 1)) {
+        if (grid[x][right] == 1) {
+            horizontal_complete = false;
+        }
+        horizontal_length++;
+        right++;
+    }
+
+    int up = x - 1;
+    while (up >= 0 && (grid[up][y] == 9 || grid[up][y] == 1)) {
+        if (grid[up][y] == 1) {
+            vertical_complete = false;
+        }
+        vertical_length++;
+        up--;
+    }
+    
+    int down = x + 1;
+    while (down < SIZE && (grid[down][y] == 9 || grid[down][y] == 1)) {
+        if (grid[down][y] == 1) {
+            vertical_complete = false;
+        }
+        vertical_length++;
+        down++;
+    }
+
+    if (horizontal_length > 1 && vertical_length > 1) {
+        return false;
+    }
+
+    if (horizontal_length > 1) {
+        bool properly_bounded = 
+            (left < 0 || grid[x][left] == 8 || grid[x][left] == 0) &&
+            (right >= SIZE || grid[x][right] == 8 || grid[x][right] == 0);
+            
+        return properly_bounded && horizontal_complete;
+    }
+
+    if (vertical_length > 1) {
+        bool properly_bounded = 
+            (up < 0 || grid[up][y] == 8 || grid[up][y] == 0) &&
+            (down >= SIZE || grid[down][y] == 8 || grid[down][y] == 0);
+            
+        return properly_bounded && vertical_complete;
+    }
+
+    return false;
+}
+*/
 
 void playTurns(int *parent_grid, int *child_grid) {
     const char *fifo_name = "/tmp/battleship_fifo";
