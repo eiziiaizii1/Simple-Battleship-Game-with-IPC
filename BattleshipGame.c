@@ -7,12 +7,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
 #include <sys/mman.h>
 #include <string.h>
+#include <ncurses.h>
 
 #define SIZE 8
 #define SHIP_COUNT 5
+#define MENU_OPTIONS 5
 
 // 0: EMPTY CELL 
 // 8: MISSED CELL
@@ -35,6 +36,30 @@ typedef struct {
 
 AIState ai_state = {false, -1, -1, {0, 0}, false, -1, -1, false};
 int turnCount = 0;
+const char *menu[] = {
+    "Place/Replace the ships",
+    "Start the battle",
+    "Reset the map",
+    "Display map",
+    "Exit"
+};
+
+void init_ncurses() {
+    initscr();    
+    start_color();
+    use_default_colors();
+    init_pair(1, COLOR_BLUE, COLOR_BLUE);   // Blue square for '0' and '5'
+    init_pair(2, COLOR_BLACK, COLOR_BLACK); // Black square for '1'
+    init_pair(3, COLOR_RED, COLOR_RED);     // Red square for 'miss' (8)
+    init_pair(4, COLOR_GREEN, COLOR_GREEN); // Green square for 'hit' (9)
+    noecho();
+    cbreak();
+    keypad(stdscr, TRUE); // Enable keyboard mapping
+}
+
+void close_ncurses() {
+    endwin();
+}
 
 // Clear the grid memory using memset
 void clear_grid(int grid[SIZE][SIZE]) {
@@ -139,15 +164,25 @@ bool all_ships_sunk(int grid[SIZE][SIZE]) {
     return true;
 };
 
-void print_grid(int grid[SIZE][SIZE], const char *name) {
-    printf("%s's grid:\n", name);
-    for (int i = 0; i < SIZE; i++) {
+void print_grid_ncurses(int grid[SIZE][SIZE], const char *name) {
+    clear();
+    mvprintw(0, 0, "%s's grid:\n", name);
+    mvprintw(10, 0, "Displaying for 0.5 seconds...");
+     for (int i = 0; i < SIZE; i++) {
         for (int j = 0; j < SIZE; j++) {
-            printf("%d ", grid[i][j]);
+            int color;
+            if (grid[i][j] == 0) color = 1;
+            else if (grid[i][j] == 1) color = 2;
+            else if (grid[i][j] == 8) color = 3;
+            else if (grid[i][j] == 5) color = 1;
+            else color = 4;
+            attron(COLOR_PAIR(color));
+            mvprintw(i + 1, j * 2, "  ");
+            attroff(COLOR_PAIR(color));
         }
-        printf("\n");
     }
-    printf("\n");
+    refresh();
+    napms(1000);     
 }
 
 // MARKS ADJACENTS OF THE SUNKEN SHIP AS "8"
@@ -164,7 +199,11 @@ void mark_adjacent_cells(int grid[SIZE][SIZE], int start_x, int start_y, int end
         for (int j = min_y; j <= max_y; j++) {
             // Check if within grid bounds and not part of the ship
             if (i >= 0 && i < SIZE && j >= 0 && j < SIZE && grid[i][j] != 9) {
-                grid[i][j] = 8; // Mark as miss
+                if(grid[i][j] == 8){
+                continue;
+                }else{
+                grid[i][j] = 5; // Mark as miss
+                }
             }
         }
     }
@@ -192,7 +231,7 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
         left--;
     }
     // ship ends with either a boundary or a miss
-    bool left_bounded = (left < 0 || grid[x][left] == 8);
+    bool left_bounded = (left < 0 || grid[x][left] == 8 || grid[x][left] == 5);
     
     // Right
     int right = y + 1;
@@ -202,7 +241,7 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
         right++;
     }
     // ship ends with either a boundary or a miss
-    bool right_bounded = (right >= SIZE || grid[x][right] == 8);
+    bool right_bounded = (right >= SIZE || grid[x][right] == 8 || grid[x][right] == 5);
 
     // Check vertical direction
     // Up
@@ -213,7 +252,7 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
         up--;
     }
     // ship ends with either a boundary or a miss
-    bool up_bounded = (up < 0 || grid[up][y] == 8);
+    bool up_bounded = (up < 0 || grid[up][y] == 8 || grid[up][y] == 5);
     
     // Down
     int down = x + 1;
@@ -223,7 +262,7 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
         down++;
     }
     // ship ends with either a boundary or a miss
-    bool down_bounded = (down >= SIZE || grid[down][y] == 8);
+    bool down_bounded = (down >= SIZE || grid[down][y] == 8 || grid[down][y] == 5);
 
     // Validate ship configuration
     if (horizontal_length > 1 && vertical_length > 1) {
@@ -250,7 +289,14 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
         }
     }
 }
-
+void display_winner(const char *winner) {
+    clear();
+    mvprintw(0, 0, "Game Over!");
+    mvprintw(2, 0, "Winner: %s", winner);
+    mvprintw(4, 0, "Press Enter to exit");
+    refresh();
+    while (getch() != 10);
+}
 void attack(int grid[SIZE][SIZE]) {
     int x, y;
     turnCount++;
@@ -265,7 +311,7 @@ void attack(int grid[SIZE][SIZE]) {
 
             // Check if we need to reverse direction
             if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || 
-                grid[x][y] == 8 || grid[x][y] == 9) {
+                grid[x][y] == 8 || grid[x][y] == 9 || grid[x][y] == 5) {
                 
                 if (!ai_state.direction_reversed) {
                     // Reverse direction and start from first hit
@@ -278,7 +324,7 @@ void attack(int grid[SIZE][SIZE]) {
                     y = ai_state.first_hit_y + ai_state.hit_direction[1];
                     
                     if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && 
-                        grid[x][y] != 8 && grid[x][y] != 9) {
+                        grid[x][y] != 8 && grid[x][y] != 9 && grid[x][y] != 5) {
                         found_target = true;
                     }
                 }
@@ -299,7 +345,7 @@ void attack(int grid[SIZE][SIZE]) {
                 int new_y = ai_state.last_hit_y + directions[i][1];
                 
                 if (new_x >= 0 && new_x < SIZE && new_y >= 0 && new_y < SIZE &&
-                    grid[new_x][new_y] != 8 && grid[new_x][new_y] != 9) {
+                    grid[new_x][new_y] != 8 && grid[new_x][new_y] != 9 && grid[new_x][new_y] != 5) {
                     x = new_x;
                     y = new_y;
                     found_target = true;
@@ -313,7 +359,7 @@ void attack(int grid[SIZE][SIZE]) {
             do {
                 x = rand() % SIZE;
                 y = rand() % SIZE;
-            } while (grid[x][y] == 8 || grid[x][y] == 9);
+            } while (grid[x][y] == 8 || grid[x][y] == 9 || grid[x][y] == 5);
             
             ai_state.target_mode = false;
             ai_state.orientation_locked = false;
@@ -324,7 +370,7 @@ void attack(int grid[SIZE][SIZE]) {
         do {
             x = rand() % SIZE;
             y = rand() % SIZE;
-        } while (grid[x][y] == 8 || grid[x][y] == 9);
+        } while (grid[x][y] == 8 || grid[x][y] == 9 || grid[x][y] == 5);
     }
 
     // Process the attack
@@ -408,12 +454,13 @@ void playTurns(int *parent_grid, int *child_grid) {
             printf("Child's turn:\n");
             attack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
             printf("Parent's Grid After Child's Attack\n");
-            print_grid((int (*)[SIZE])parent_grid, "Parent");
+            print_grid_ncurses((int (*)[SIZE])parent_grid, "Parent");
 
             
 
             if (all_ships_sunk((int (*)[SIZE])parent_grid)) {
                 printf("Child wins!\n");
+                display_winner("Child");
                 turn = -1;
                 fd = open(fifo_name, O_WRONLY);
                 write(fd, &turn, sizeof(turn));
@@ -441,10 +488,11 @@ void playTurns(int *parent_grid, int *child_grid) {
                 printf("Parent's turn:\n");
                 attack((int (*)[SIZE])child_grid);
                 printf("Child's Grid After Parent's Attack\n");
-                print_grid((int (*)[SIZE])child_grid, "Child");
+                print_grid_ncurses((int (*)[SIZE])child_grid, "Child");
 
                 if (all_ships_sunk((int (*)[SIZE])child_grid)) {
                     printf("Parent wins!\n");
+                    display_winner("Parent");
                     turn = -1;
                     fd = open(fifo_name, O_WRONLY);
                     write(fd, &turn, sizeof(turn));
@@ -473,87 +521,82 @@ void playTurns(int *parent_grid, int *child_grid) {
     }
 }
 
+int display_menu(int highlight) {
+    clear();
+    mvprintw(0, 0, "Welcome to The Battleship Game");
+    for (int i = 0; i < MENU_OPTIONS; ++i) {
+        if (i == highlight) attron(A_REVERSE);
+        mvprintw(i + 2, 0, "%s", menu[i]);
+        if (i == highlight) attroff(A_REVERSE);
+    }
+    mvprintw(MENU_OPTIONS + 3, 0, "Use arrow keys to move and Enter to select");
+    refresh();
+    return getch();
+    }
+
 int main() {
     srand(time(NULL));
 
-    // Allocate grids in shared memory once
     int (*parent_grid)[SIZE] = mmap(NULL, SIZE * SIZE * sizeof(int),
                                     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     int (*child_grid)[SIZE] = mmap(NULL, SIZE * SIZE * sizeof(int),
                                    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
-    // Check if mmap was successful
     if (parent_grid == MAP_FAILED || child_grid == MAP_FAILED) {
         perror("mmap failed");
         exit(EXIT_FAILURE);
     }
 
-    // Initialize grids with memset for reliability
     clear_grid(parent_grid);
     clear_grid(child_grid);
+    struct ships ship_list[SHIP_COUNT] = {{4}, {3}, {3}, {2}, {2}};
 
-    bool shipsPlaced = false;
-    bool alreadyBattled = false;
+    init_ncurses();
 
-    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2}, {2} };
-
-    printf("Welcome to The Battleship Game\n");
-    int option;
-    do {
-        printf("Enter 1 to place/replace the ships\n");
-        printf("Enter 2 to start the battle\n");
-        printf("Enter 3 to reset the map\n");
-        printf("Enter 4 to display map\n");
-        printf("Press any key to finish the game\n");
-
-        if (scanf("%d", &option) != 1) {
-            break;
+    int highlight = 0, choice = -1, ch;
+    bool shipsPlaced = false, alreadyBattled = false;
+    while (true) {
+        ch = display_menu(highlight);
+        switch (ch) {
+            case KEY_UP:
+                if (highlight > 0) highlight--;
+                break;
+            case KEY_DOWN:
+                if (highlight < MENU_OPTIONS - 1) highlight++;
+                break;
+            case 10:
+                choice = highlight;
+                if (choice == 0) {
+                    clear_grid(parent_grid);
+                    clear_grid(child_grid);
+                    place_ships(parent_grid, ship_list);
+                    place_ships(child_grid, ship_list);
+                    shipsPlaced = true;
+                    alreadyBattled = false;
+                } else if (choice == 1) {
+                    if (!shipsPlaced) mvprintw(MENU_OPTIONS + 4, 0, "PLACE THE SHIPS FIRST!!!");
+                    else if (alreadyBattled) mvprintw(MENU_OPTIONS + 4, 0, "YOU MUST RESET THE MAP AND REPLACE THE SHIPS!!!");
+                    else {
+                        playTurns((int *)parent_grid, (int *)child_grid);
+                        alreadyBattled = true;
+                    }
+                } else if (choice == 2) {
+                    clear_grid(parent_grid);
+                    clear_grid(child_grid);
+                    alreadyBattled = false;
+                    shipsPlaced = false;
+                } else if (choice == 3) {
+                    print_grid_ncurses(parent_grid, "Parent");
+                    print_grid_ncurses(child_grid, "Child");
+                }
+                refresh();
+                break;
+            default: break;
         }
-
-        if (option == 1) {
-            clear_grid(parent_grid);
-            clear_grid(child_grid);
-
-            printf("Placing ships...\n");
-            place_ships(parent_grid, ship_list);
-            place_ships(child_grid, ship_list);
-            printf("Ships placed successfully.\n");
-            shipsPlaced = true;
-            alreadyBattled = false;
-
+        if (ch == 'q' || ch == 'Q' || choice == 4) break;
         }
-        else if (option == 2) {
-            if (!shipsPlaced) {
-                printf("\nPLACE THE SHIPS FIRST!!!\n");
-            }
-            else if (alreadyBattled) {
-                printf("\n YOU MUST RESET THE MAP AND REPLACE THE SHIPS!!!\n");
-            }
-            else {
-                playTurns((int *)parent_grid, (int *)child_grid);
-                alreadyBattled = true;
-            }
-        }
-        else if (option == 3) {
-            clear_grid(parent_grid);
-            clear_grid(child_grid);
-
-            alreadyBattled = false;
-            shipsPlaced = false;
-        } 
-        else if (option == 4) {
-            printf("Parent Process: Displaying Parent's Grid\n");
-            print_grid(parent_grid, "Parent");
-            printf("Child Process: Displaying Child's Grid\n");
-            print_grid(child_grid, "Child");
-        }
-
-        printf("\n----------------------------------------------------------\n");
-    } while (option > 0 && option < 5);
-
-    // Clean up memory at the end
+    close_ncurses();
     munmap(parent_grid, SIZE * SIZE * sizeof(int));
     munmap(child_grid, SIZE * SIZE * sizeof(int));
-
     return 0;
 }
