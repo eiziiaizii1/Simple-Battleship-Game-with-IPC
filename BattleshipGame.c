@@ -167,7 +167,6 @@ bool all_ships_sunk(int grid[SIZE][SIZE]) {
 void print_grid_ncurses(int grid[SIZE][SIZE], const char *name) {
     clear();
     mvprintw(0, 0, "%s's grid:\n", name);
-    mvprintw(10, 0, "Displaying for 0.5 seconds...");
      for (int i = 0; i < SIZE; i++) {
         for (int j = 0; j < SIZE; j++) {
             int color;
