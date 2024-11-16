@@ -14,6 +14,10 @@
 #define SIZE 8
 #define SHIP_COUNT 4
 
+// 0: EMPTY CELL 
+// 8: MISSED CELL
+// 9: SUCCESSFUL HIT ON A CELL
+
 struct ships {
     int size;
 };
@@ -146,18 +150,19 @@ void print_grid(int grid[SIZE][SIZE], const char *name) {
     printf("\n");
 }
 
-// Helper function to mark adjacent cells as misses when a ship is sunk
+// MARKS ADJACENTS OF THE SUNKEN SHIP AS "8"
+// It is a bit buggy, but decreases turn count withott breaking the program 
 void mark_adjacent_cells(int grid[SIZE][SIZE], int start_x, int start_y, int end_x, int end_y) {
-    // Determine the area to mark
+    // Determine the area to mark (extend by 1 cell in all directions)
     int min_x = (start_x < end_x ? start_x : end_x) - 1;
     int max_x = (start_x > end_x ? start_x : end_x) + 1;
     int min_y = (start_y < end_y ? start_y : end_y) - 1;
     int max_y = (start_y > end_y ? start_y : end_y) + 1;
 
-    // Mark all cells in the area
+    // Iterate through the surrounding area
     for (int i = min_x; i <= max_x; i++) {
         for (int j = min_y; j <= max_y; j++) {
-            // Check if within grid bounds and not a hit
+            // Check if within grid bounds and not part of the ship
             if (i >= 0 && i < SIZE && j >= 0 && j < SIZE && grid[i][j] != 9) {
                 grid[i][j] = 8; // Mark as miss
             }
@@ -166,7 +171,7 @@ void mark_adjacent_cells(int grid[SIZE][SIZE], int start_x, int start_y, int end
 }
 
 bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
-    // First, verify we're actually checking a hit position
+    // th func should check a hit position
     if (grid[x][y] != 9) {
         return false;
     }
@@ -175,93 +180,78 @@ bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y, bool mark_adjacent) {
     int start_x = x, end_x = x;
     int start_y = y, end_y = y;
 
-    // Check both horizontal and vertical directions from the hit position
     int horizontal_length = 1;
     int vertical_length = 1;
-    bool horizontal_complete = true;
-    bool vertical_complete = true;
 
     // Check horizontal direction
     // Left
     int left = y - 1;
-    while (left >= 0 && (grid[x][left] == 9 || grid[x][left] == 1)) {
-        if (grid[x][left] == 1) {
-            horizontal_complete = false;
-        }
+    while (left >= 0 && grid[x][left] == 9) {
         horizontal_length++;
         start_y = left;
         left--;
     }
+    // ship ends with either a boundary or a miss
+    bool left_bounded = (left < 0 || grid[x][left] == 8);
     
     // Right
     int right = y + 1;
-    while (right < SIZE && (grid[x][right] == 9 || grid[x][right] == 1)) {
-        if (grid[x][right] == 1) {
-            horizontal_complete = false;
-        }
+    while (right < SIZE && grid[x][right] == 9) {
         horizontal_length++;
         end_y = right;
         right++;
     }
+    // ship ends with either a boundary or a miss
+    bool right_bounded = (right >= SIZE || grid[x][right] == 8);
 
     // Check vertical direction
     // Up
     int up = x - 1;
-    while (up >= 0 && (grid[up][y] == 9 || grid[up][y] == 1)) {
-        if (grid[up][y] == 1) {
-            vertical_complete = false;
-        }
+    while (up >= 0 && grid[up][y] == 9) {
         vertical_length++;
         start_x = up;
         up--;
     }
+    // ship ends with either a boundary or a miss
+    bool up_bounded = (up < 0 || grid[up][y] == 8);
     
     // Down
     int down = x + 1;
-    while (down < SIZE && (grid[down][y] == 9 || grid[down][y] == 1)) {
-        if (grid[down][y] == 1) {
-            vertical_complete = false;
-        }
+    while (down < SIZE && grid[down][y] == 9) {
         vertical_length++;
         end_x = down;
         down++;
     }
+    // ship ends with either a boundary or a miss
+    bool down_bounded = (down >= SIZE || grid[down][y] == 8);
 
     // Validate ship configuration
     if (horizontal_length > 1 && vertical_length > 1) {
-        return false; // Invalid L-shaped configuration
+        return false;
     }
 
     bool is_sunk = false;
-    // Check if we found a complete
-    // Horizontal ship
+    // Check if we found a complete ship
     if (horizontal_length > 1) {
-        bool properly_bounded = 
-            (left < 0 || grid[x][left] == 8 || grid[x][left] == 0) &&
-            (right >= SIZE || grid[x][right] == 8 || grid[x][right] == 0);
-            
-        is_sunk = properly_bounded && horizontal_complete;
+        is_sunk = left_bounded && right_bounded;
         if (is_sunk && mark_adjacent) {
             mark_adjacent_cells(grid, x, start_y, x, end_y);
         }
-    }
-
-    // Vertical sihp
-    if (vertical_length > 1) {
-        bool properly_bounded = 
-            (up < 0 || grid[up][y] == 8 || grid[up][y] == 0) &&
-            (down >= SIZE || grid[down][y] == 8 || grid[down][y] == 0);
-            
-        is_sunk = properly_bounded && vertical_complete;
+    } else if (vertical_length > 1) {
+        is_sunk = up_bounded && down_bounded;
         if (is_sunk && mark_adjacent) {
             mark_adjacent_cells(grid, start_x, y, end_x, y);
+        } 
+    } else {
+        // Single cell ship (actually, no need for that, but why not though)
+        is_sunk = (left_bounded && right_bounded && up_bounded && down_bounded);
+        if (is_sunk && mark_adjacent) {
+            mark_adjacent_cells(grid, x, y, x, y);
         }
     }
-
-    return is_sunk;
 }
 
-void aiAttack(int grid[SIZE][SIZE]) {
+void attack(int grid[SIZE][SIZE]) {
     int x, y;
     turnCount++;
 
@@ -367,192 +357,24 @@ void aiAttack(int grid[SIZE][SIZE]) {
         }
     } else {  // Miss
         printf("AI miss at (%d, %d)!\n", x, y);
+        
+        // As the last hit might be miss(after sinking the ship), we must also chek sunk status
+        // if check to prevent segmewntation fault
+        if (ai_state.last_hit_x >= 0 && ai_state.last_hit_x < SIZE &&
+            ai_state.last_hit_y >= 0 && ai_state.last_hit_y < SIZE) {
+
+            int xF = ai_state.last_hit_x;
+            int yf = ai_state.last_hit_y;
+            if (is_ship_sunk(grid, xF, yf, true)) {
+                printf("AI sunk a ship!\n");
+                ai_state.target_mode = false;
+                ai_state.orientation_locked = false;
+                ai_state.direction_reversed = false;
+            }
+        }
         grid[x][y] = 8;
     }
 }
-
-
-// AI that doesn't know adjaceny rule 
-/*
-void aiAttackNOOBIE(int grid[SIZE][SIZE]) {
-    int x, y;
-    turnCount++;
-
-    if (ai_state.target_mode) {
-        bool found_target = false;
-
-        if (ai_state.orientation_locked) {
-            // Try current direction first
-            x = ai_state.last_hit_x + ai_state.hit_direction[0];
-            y = ai_state.last_hit_y + ai_state.hit_direction[1];
-
-            // Check if we need to reverse direction
-            if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || 
-                grid[x][y] == 8 || grid[x][y] == 9) {
-                
-                if (!ai_state.direction_reversed) {
-                    // Reverse direction and start from first hit
-                    ai_state.hit_direction[0] *= -1;
-                    ai_state.hit_direction[1] *= -1;
-                    ai_state.direction_reversed = true;
-                    
-                    // Start from the first hit position
-                    x = ai_state.first_hit_x + ai_state.hit_direction[0];
-                    y = ai_state.first_hit_y + ai_state.hit_direction[1];
-                    
-                    if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && 
-                        grid[x][y] != 8 && grid[x][y] != 9) {
-                        found_target = true;
-                    }
-                }
-                
-                if (!found_target) {
-                    // If we've already tried both directions, reset targeting
-                    ai_state.target_mode = false;
-                    ai_state.orientation_locked = false;
-                    ai_state.direction_reversed = false;
-                }
-            } else {
-                found_target = true;
-            }
-        } else {
-            // If orientation not locked, try all four directions around the last hit
-            int directions[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
-            for (int i = 0; i < 4; i++) {
-                int new_x = ai_state.last_hit_x + directions[i][0];
-                int new_y = ai_state.last_hit_y + directions[i][1];
-                
-                if (new_x >= 0 && new_x < SIZE && new_y >= 0 && new_y < SIZE &&
-                    grid[new_x][new_y] != 8 && grid[new_x][new_y] != 9) {
-                    x = new_x;
-                    y = new_y;
-                    found_target = true;
-                    break;
-                }
-            }
-        }
-
-        if (!found_target) {
-            // Reset to random targeting if no valid targets found
-            do {
-                x = rand() % SIZE;
-                y = rand() % SIZE;
-            } while (grid[x][y] == 8 || grid[x][y] == 9);
-            
-            ai_state.target_mode = false;
-            ai_state.orientation_locked = false;
-            ai_state.direction_reversed = false;
-        }
-    } else {
-        // Random targeting mode
-        do {
-            x = rand() % SIZE;
-            y = rand() % SIZE;
-        } while (grid[x][y] == 8 || grid[x][y] == 9);
-    }
-
-    // Process the attack
-    if (grid[x][y] == 1) {  // Hit
-        printf("AI hit at (%d, %d)!\n", x, y);
-        grid[x][y] = 9;
-        
-        if (!ai_state.target_mode) {
-            // First hit on a new ship
-            ai_state.first_hit_x = x;
-            ai_state.first_hit_y = y;
-            ai_state.direction_reversed = false;
-        } else if (!ai_state.orientation_locked) {
-            // Second hit - lock orientation
-            ai_state.hit_direction[0] = x - ai_state.last_hit_x;
-            ai_state.hit_direction[1] = y - ai_state.last_hit_y;
-            ai_state.orientation_locked = true;
-        }
-        
-        ai_state.last_hit_x = x;
-        ai_state.last_hit_y = y;
-        ai_state.target_mode = true;
-
-        // Check if the ship is sunk
-        if (is_ship_sunk(grid, x, y)) {
-            printf("AI sunk a ship!\n");
-            ai_state.target_mode = false;
-            ai_state.orientation_locked = false;
-            ai_state.direction_reversed = false;
-        }
-    } else {  // Miss
-        printf("AI miss at (%d, %d)!\n", x, y);
-        grid[x][y] = 8;
-    }
-}
-bool is_ship_sunk(int grid[SIZE][SIZE], int x, int y) {
-    if (grid[x][y] != 9) {
-        return false;
-    }
-
-    int horizontal_length = 1;
-    int vertical_length = 1;
-    bool horizontal_complete = true;
-    bool vertical_complete = true;
-
-    int left = y - 1;
-    while (left >= 0 && (grid[x][left] == 9 || grid[x][left] == 1)) {
-        if (grid[x][left] == 1) {
-            horizontal_complete = false;
-        }
-        horizontal_length++;
-        left--;
-    }
-    
-    int right = y + 1;
-    while (right < SIZE && (grid[x][right] == 9 || grid[x][right] == 1)) {
-        if (grid[x][right] == 1) {
-            horizontal_complete = false;
-        }
-        horizontal_length++;
-        right++;
-    }
-
-    int up = x - 1;
-    while (up >= 0 && (grid[up][y] == 9 || grid[up][y] == 1)) {
-        if (grid[up][y] == 1) {
-            vertical_complete = false;
-        }
-        vertical_length++;
-        up--;
-    }
-    
-    int down = x + 1;
-    while (down < SIZE && (grid[down][y] == 9 || grid[down][y] == 1)) {
-        if (grid[down][y] == 1) {
-            vertical_complete = false;
-        }
-        vertical_length++;
-        down++;
-    }
-
-    if (horizontal_length > 1 && vertical_length > 1) {
-        return false;
-    }
-
-    if (horizontal_length > 1) {
-        bool properly_bounded = 
-            (left < 0 || grid[x][left] == 8 || grid[x][left] == 0) &&
-            (right >= SIZE || grid[x][right] == 8 || grid[x][right] == 0);
-            
-        return properly_bounded && horizontal_complete;
-    }
-
-    if (vertical_length > 1) {
-        bool properly_bounded = 
-            (up < 0 || grid[up][y] == 8 || grid[up][y] == 0) &&
-            (down >= SIZE || grid[down][y] == 8 || grid[down][y] == 0);
-            
-        return properly_bounded && vertical_complete;
-    }
-
-    return false;
-}
-*/
 
 void playTurns(int *parent_grid, int *child_grid) {
     const char *fifo_name = "/tmp/battleship_fifo";
@@ -584,8 +406,7 @@ void playTurns(int *parent_grid, int *child_grid) {
             
             printf("TURN COUNT: %d\n", turnCount);
             printf("Child's turn:\n");
-            //attack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
-            aiAttack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
+            attack((int (*)[SIZE])parent_grid);  // Cast to access as 2D array
             printf("Parent's Grid After Child's Attack\n");
             print_grid((int (*)[SIZE])parent_grid, "Parent");
 
@@ -618,8 +439,7 @@ void playTurns(int *parent_grid, int *child_grid) {
                 //usleep(1000);
                 printf("TURN COUNT: %d\n", turnCount);
                 printf("Parent's turn:\n");
-                //attack((int (*)[SIZE])child_grid);
-                aiAttack((int (*)[SIZE])child_grid);
+                attack((int (*)[SIZE])child_grid);
                 printf("Child's Grid After Parent's Attack\n");
                 print_grid((int (*)[SIZE])child_grid, "Child");
 
