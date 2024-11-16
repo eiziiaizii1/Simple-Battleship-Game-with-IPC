@@ -12,7 +12,7 @@
 #include <string.h>
 
 #define SIZE 8
-#define SHIP_COUNT 4
+#define SHIP_COUNT 5
 
 // 0: EMPTY CELL 
 // 8: MISSED CELL
@@ -495,7 +495,7 @@ int main() {
     bool shipsPlaced = false;
     bool alreadyBattled = false;
 
-    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2} };
+    struct ships ship_list[SHIP_COUNT] = { {4}, {3}, {3}, {2}, {2} };
 
     printf("Welcome to The Battleship Game\n");
     int option;
