@@ -428,8 +428,8 @@ void playTurns(int *parent_grid, int *child_grid) {
     pid_t pid = fork();
     
     init_ncurses();
-	timeout(0);    
-	bool pause = false;
+    timeout(0);    
+    bool pause = false;
     int ch;
     
     if (pid < 0) {
@@ -463,7 +463,7 @@ void playTurns(int *parent_grid, int *child_grid) {
             	if (ch == ' ') { 
                     pause = false;
                 }
-			}
+	    }
             
             printf("TURN COUNT: %d\n", turnCount);
             printf("Child's turn:\n");
@@ -503,8 +503,9 @@ void playTurns(int *parent_grid, int *child_grid) {
             while(pause){
             	ch = getch();
             	if (ch == ' ') { 
-                    pause = false;}
-            }
+                    pause = false;
+		}
+        }
             if (turn == 1) {
                 
                 //usleep(1000);
