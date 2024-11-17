@@ -426,7 +426,12 @@ void playTurns(int *parent_grid, int *child_grid) {
     mkfifo(fifo_name, 0666);
 
     pid_t pid = fork();
-
+    
+    init_ncurses();
+	timeout(0);    
+	bool pause = false;
+    int ch;
+    
     if (pid < 0) {
         perror("Failed to fork");
         exit(EXIT_FAILURE);
@@ -448,6 +453,17 @@ void playTurns(int *parent_grid, int *child_grid) {
                 printf("Child process exiting...\n");
                 break;
             }
+
+            ch = getch();
+            if (ch == ' ') { 
+                pause = !pause;
+            }
+            while(pause){
+            	ch = getch();
+            	if (ch == ' ') { 
+                    pause = false;
+                }
+			}
             
             printf("TURN COUNT: %d\n", turnCount);
             printf("Child's turn:\n");
@@ -480,6 +496,15 @@ void playTurns(int *parent_grid, int *child_grid) {
         int fd;
         int turn = 1;
         while (true) {
+            ch = getch();
+            if (ch == ' ') {
+                pause = !pause;
+            }
+            while(pause){
+            	ch = getch();
+            	if (ch == ' ') { 
+                    pause = false;}
+            }
             if (turn == 1) {
                 
                 //usleep(1000);
