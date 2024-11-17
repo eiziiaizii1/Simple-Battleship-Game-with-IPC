@@ -553,6 +553,7 @@ int display_menu(int highlight) {
         mvprintw(i + 2, 0, "%s", menu[i]);
         if (i == highlight) attroff(A_REVERSE);
     }
+    mvprintw(MENU_OPTIONS + 4, 0,"Press space to pause or unpause during the battle");
     mvprintw(MENU_OPTIONS + 3, 0, "Use arrow keys to move and Enter to select");
     refresh();
     return getch();
